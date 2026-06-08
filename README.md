@@ -1,128 +1,76 @@
 # Frinet
 
-Multi-platform trace generation with Frida, combined with a modified version of the Tenet plugin for exploration.
-
-[Blogpost on the Synacktiv website](https://www.synacktiv.com/publications/frinet-reverse-engineering-made-easier)
-
-**General use case** : Tracing the execution of a specific function in a userland process, on a Frida-compatible system (Tested on Linux/Android/iOS/Windows).
+> By combining Frida with an enhanced version of Tenet, Frinet facilitates the study of large programs, vulnerability research and root-cause analysis on iOS, Android, Linux, Windows, and most architectures. [Blogpost on the Synacktiv website](https://www.synacktiv.com/publications/frinet-reverse-engineering-made-easier)
 
 <p align="center">
 <img alt="Tenet" src="screenshots/frinet.png"/>
 </p>
 
-This repository contains our customized fork of Tenet in the *tenet* subdirectory. As explained in the
-README, we did not do a pull request (yet) because our new features break some of the legacy features.
+This version is a complete rewrite of `synacktiv/frinet` (originally a fork of [gaasedelen/tenet](https://github.com/synacktiv/frinet/tree/legacy)).
+You can still find the old version on the [legacy branch](https://github.com/synacktiv/frinet/tree/legacy).
 
-Our custom version is required for use with this tracer, but can still process traces from other 
-Tenet tracers.
+This project was presented at SSTIC 2026 (in French) : [video/slides/paper](https://www.sstic.org/2026/presentation/spatial_frinet/).
 
- This repository needs to be cloned using the recursive flag : 
+The new archictecture is based on four components :
+- `Indexer` : A Rust CLI that produces an optimized index from a trace file.
+- `Backend` : A Rust crate that implements specialized algorihms to query the optimized index file.
+- `Backend (Python bindings)` : A Rust crate that exposes a python interface.
+- `IDA Plugin` : A thin layer of python code that queries and integrates data from the backend into the IDA interface.
 
-```git clone --recursive https://github.com/synacktiv/frinet.git```
+## Features
 
-## Tracer
+**Tracer based on Frida**: Identical to the legacy version of Frinet.
 
-### Features
+**Indexer / Backend**:
+- Efficient indexing of traces with up to 2 billion instructions (~100 GB).
+- Independent of the trace format (only the Tenet format is supported for now).
+- Multi-threaded memory search with full regex support.
+- Usable as a standalone Rust library: `crates/db`.
 
-Compatible with **Windows**, **Linux**, **Android** & **iOS**
+**Frontend**: 
+- Timeline / Register / Memory views.
+- Assembly timeline trails (red/green/blue).
+- Memory read/write breakpoint.
+- Jump to first/prev/next/last execution.
 
-Fully supported architecture :
+### Missing features & TODOs
 
- * arm64
- * x64
+- Reach frontend feature parity with Frinet v1:
+  - The call tree view is not yet implemented.
+- UI polishing.
+  
+## Build & Installation
 
-Partially supported architectures (slower and less precise memory tracking, but usually good enough) :
+```bash
+# Build the Python bindings shared lib
+apt install python3-dev
+cargo build --release
+cp target/release/libfrinet_db.so frontend/frinet_db.so
 
- * arm
- * x86
-
-### Dependencies
-
-Python3 and Frida
-
-```pip install frida```
-
-### How to use
-
-```
-usage: python3 trace.py [-h] [-v] [-D DEVICE] [-U] [-R] [-H HOST] [-m]
-                          [-a ARGS] [-e] [-s] [-E END]
-                          {spawn,attach} ... process module addr
-
-positional arguments:
-  {spawn,attach}
-    spawn               Spawn process
-    attach              Attach to process
-  process               attach:[process name or PID]; spawn:[binary path or
-                        package name]
-  module                module name to instrument
-  addr                  entrypoint function address
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --verbose         verbose output
-  -D DEVICE, --device DEVICE
-                        connect to device with the given ID
-  -U, --usb             connect to USB device
-  -R, --remote          connect to remote frida server
-  -H HOST, --host HOST  connect to remote frida server on host
-  -m, --multirun        do not unhook after first execution
-  -a ARGS, --args ARGS  comma-separated argument list for spawn (including
-                        binary name) : "/bin/sh,-c,ls"
-  -e, --exclude         exclude all other modules (memory tracing will be
-                        inaccurate)
-  -s, --slow            use slower JS implementation (multiarch)
-  -E END, --end END     specify end address instead of function exit (-1 to
-                        never end)
+# Symlink (or copy) the IDA Plugin
+ln -s $PWD/frontend ~/.idapro/plugins/frinet
 ```
 
-#### Example : Spawn a new process to trace
+## Usage
 
-```
-python3 trace.py spawn [BIN_PATH] [MODULE_NAME] [FUNC_ADDR] -a [ARGS]
-python3 trace.py spawn /bin/ls ls 0x1234 -a '/bin/ls,-la'
-```
+```bash
+# 1. Trace /bin/ls with frida
+python tracer/trace.py spawn /bin/ls ls 0x4c00
 
-This will trace one execution of the function at address 0x1234, until it returns.
+# 2. Build an optimised index of the trace
+cargo run --bin frinet --release -- index --format tenet tracer/traces/ls_xxxx.tenet ls.db
 
-It is also possible to specify an end address with "-E", or trace multiple executions with "-m".
-
-#### Example : Attach to a process on Android device
-
-```
-python3 trace.py attach [PROCNAME_OR_PID] [MODULE_NAME] [FUNC_ADDR] -U
-python3 trace.py attach sh sh 0x1234 -U
+# 3. Open the trace in IDA (File > Load File > Open Frinet DB...)
 ```
 
+## Testing & Fuzzing & Benchmark
 
-## Tenet
+```bash
+cargo test
 
-### Dependencies
+cargo install cargo-fuzz
+cargo +nightly fuzz run --fuzz-dir crates/fuzz register_indexing
 
-IDA Pro (tested on ```Version 8.3.230608 Linux x86_64``` but should work in most recent versions compatible with Tenet legacy)
-
-### How to use
-
+cargo install cargo-criterion
+BENCH_DB=my.db cargo criterion
 ```
-cp tenet/plugins/tenet_plugin.py ~/.idapro/plugins
-cp -R tenet/plugins/tenet ~/.idapro/plugins
-```
-
-Then, in IDA after loading the correct binary :
-
-```
-File -> Load file -> Tenet trace file
-```
-
-For more information, see the *README.md* from our Tenet fork, as well as the original author's blogpost about the tool :
- * https://github.com/hexa-synacktiv/tenet/blob/master/README.md
- * http://blog.ret2.io/2021/04/20/tenet-trace-explorer/
-
-### New features
-
-Some new features have been added to the **Tenet** plugin.
-The compressed trace format feature has been removed for now, as it needs to be modified to handle the added features.
-
-Most notably :
- * The **Call tree view** window gives a clickable indented overview of the whole execution trace.
- * The **Seach bytes** feature is available in the **Memory views** context menu, and does the search in both space and time

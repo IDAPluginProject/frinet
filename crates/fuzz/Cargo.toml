@@ -1,0 +1,21 @@
+[package]
+name = "frinet-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+frinet-db = { workspace = true }
+frinet-index = { workspace = true }
+arbitrary = { workspace = true, features = ["derive"] }
+
+[[bin]]
+name = "register_indexing"
+path = "fuzz_targets/register_indexing.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,9 @@
+{
+    "IDAMetadataDescriptorVersion": 1,
+    "plugin": {
+        "name": "Frinet",
+        "version": "0.1.0",
+        "idaVersions": "9.3",
+        "entryPoint": "plugin.py"
+    }
+}

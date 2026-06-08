@@ -1,0 +1,30 @@
+[package]
+name = "frinet-db"
+version = "0.1.0"
+edition = "2024"
+
+[[bench]]
+name = "requests"
+harness = false
+
+[dependencies]
+frinet-regex = { workspace = true }
+
+smallvec = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+rayon = { workspace = true }
+itertools = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+regex-syntax = { workspace = true }
+rustc-hash = { workspace = true }
+
+# optional deps
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+pyo3 = { workspace = true, optional = true }
+
+[dev-dependencies]
+memmap2 = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
